@@ -1,0 +1,155 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_LEDBackpack.h>
+
+// Pin definitions
+int red = 5;
+int green = 3;
+int yellow = 4;
+int switchState = 0;
+int lastSwitchState = 0;
+unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 50;
+
+const int pingPin = 7;
+const int echoPin = 6;
+
+// 7-segment display
+Adafruit_7segment matrix = Adafruit_7segment();
+
+void setup() {
+  Serial.begin(9600);
+ 
+  pinMode(red, OUTPUT);
+  pinMode(yellow, OUTPUT);
+  pinMode(green, OUTPUT);
+  pinMode(2, INPUT);
+  
+  matrix.begin(0x70);
+  matrix.print(0, DEC); 
+  matrix.writeDisplay();
+}
+
+void loop() {
+  // Read button with debouncing
+  int reading = digitalRead(2);
+  
+  if (reading != lastSwitchState) {
+    lastDebounceTime = millis();
+  }
+  
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading != switchState) {
+      switchState = reading;
+    }
+  }
+  lastSwitchState = reading;
+  
+  // Check if button is pressed
+  if (switchState == HIGH) {
+    pedestrianMode();
+    return;
+  }
+  
+  // Normal distance-based operation
+  int distance = calculateDistance(pingPin, echoPin);
+  
+  if (distance <= 100) {
+    // Car detected - green for cars
+    digitalWrite(red, LOW);
+    digitalWrite(yellow, HIGH);
+    digitalWrite(green, LOW);
+    matrix.print(0, DEC); // Display 0 when no pedestrian mode
+    matrix.writeDisplay();
+    delay(1000);
+    
+    while (distance <= 100) {
+      distance = calculateDistance(pingPin, echoPin);
+      digitalWrite(red, LOW);
+      digitalWrite(yellow, LOW);
+      digitalWrite(green, HIGH);
+      
+      if (digitalRead(2) == HIGH) {
+        pedestrianMode();
+        return;
+      }
+      delay(100);
+    }
+  }
+  
+  if (distance > 100) {
+    // No car - red for cars
+    digitalWrite(red, LOW);
+    digitalWrite(yellow, HIGH);
+    digitalWrite(green, LOW);
+    matrix.print(0, DEC); // Display 0 when no pedestrian mode
+    matrix.writeDisplay();
+    delay(1000);
+    
+    while (distance > 100) {
+      distance = calculateDistance(pingPin, echoPin);
+      digitalWrite(red, HIGH);
+      digitalWrite(yellow, LOW);
+      digitalWrite(green, LOW);
+      
+      if (digitalRead(2) == HIGH) {
+        pedestrianMode();
+        return;
+      }
+      delay(100);
+    }
+  }
+}
+
+void pedestrianMode() {
+  // Yellow light transition
+  digitalWrite(red, LOW);
+  digitalWrite(yellow, HIGH);
+  digitalWrite(green, LOW);
+  matrix.print(0, DEC);
+  matrix.writeDisplay();
+  delay(1000);
+  
+  // Red light for cars, pedestrian crossing
+  digitalWrite(red, HIGH);
+  digitalWrite(yellow, LOW);
+  digitalWrite(green, LOW);
+  
+  // Countdown from 10 to 1 on 7-segment display
+  for (int i = 10; i >= 1; i--) {
+    matrix.print(i, DEC);
+    matrix.writeDisplay();
+    delay(1000); // 1 second per count
+  }
+  
+  // Display 0 when done
+  matrix.print(0, DEC);
+  matrix.writeDisplay();
+  
+  // Reset lights
+  digitalWrite(red, LOW);
+  digitalWrite(yellow, LOW);
+  digitalWrite(green, LOW);
+}
+
+long microsecondsToCentimeters(long microseconds) {
+  return microseconds / 29 / 2;
+}
+
+int calculateDistance(int pingPin, int echoPin) {
+  long duration, cm;
+  
+  pinMode(pingPin, OUTPUT);
+  digitalWrite(pingPin, LOW);
+  delayMicroseconds(2);
+  
+  digitalWrite(pingPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(pingPin, LOW);
+  
+  pinMode(echoPin, INPUT);
+  duration = pulseIn(echoPin, HIGH);
+  
+  cm = microsecondsToCentimeters(duration);
+  return cm;
+}

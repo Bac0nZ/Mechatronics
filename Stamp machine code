@@ -1,0 +1,69 @@
+#include <Servo.h>
+
+// Create servo objects
+Servo conveyorServo;
+Servo stampServo;
+
+// Define pin connections
+const int BUTTON_OBJECT = 2;
+const int BUTTON_STAMP = 3;
+
+// Variable to remember the machine's state
+bool conveyorRunning = true;
+
+void setup() {
+  // Attach servos to their pins
+  conveyorServo.attach(8);
+  stampServo.attach(9);
+
+  // Set button pins as INPUT
+  pinMode(BUTTON_OBJECT, INPUT);
+  pinMode(BUTTON_STAMP, INPUT);
+
+  // Start position: stamp up, conveyor ready to run
+  stampServo.write(0); // 0 degrees = Stamp UP
+  delay(500); // Give it time to move
+  
+  // Start the conveyor
+  conveyorServo.write(0); // Start moving
+}
+
+void loop() {
+  // Read the buttons
+  int objectPressed = digitalRead(BUTTON_OBJECT);
+  int stampPressed = digitalRead(BUTTON_STAMP);
+
+  // 1. Check if the object is pressing the button to STOP conveyor
+  if (objectPressed == HIGH && conveyorRunning == true) {
+    // Object has arrived!
+    conveyorRunning = false;      // Change the state
+    conveyorServo.write(90);      // Stop conveyor
+    performStamp();               // Run the stamping function
+  }
+
+  // 2. Check if the stamp is pressing the button to START conveyor
+  if (stampPressed == HIGH && conveyorRunning == false) {
+    // Stamp has returned and is pressing the button
+    conveyorRunning = true;       // Change the state
+    // Conveyor will start moving in the next loop cycle
+  }
+
+  // 3. Control the conveyor based on the state
+  if (conveyorRunning) {
+    conveyorServo.write(0);
+  } else {
+    conveyorServo.write(90);
+  }
+
+  delay(15); // Small delay for stability
+}
+
+void performStamp() {
+  // 1. Stamp Down (this will press Button 2)
+  stampServo.write(90); // Move to stamping position
+  delay(800);           // Hold for stamping
+  
+  // 2. Stamp Up
+  stampServo.write(0);  // Move back up
+  delay(500);           // Wait for it to return
+}
